@@ -95,4 +95,7 @@ library ErrorsLib {
 
     /// @notice Thrown when all caps have been reached.
     error AllCapsReached();
+
+    /// @notice Thrown when the market is not a MetaMorpho vault.
+    error InvalidMetaMorpho();
 }

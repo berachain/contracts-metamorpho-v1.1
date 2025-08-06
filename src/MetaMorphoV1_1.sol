@@ -94,6 +94,9 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     address public feeRecipient;
 
     /// @inheritdoc IMetaMorphoV1_1Base
+    address public feeCollector;
+
+    /// @inheritdoc IMetaMorphoV1_1Base
     address public skimRecipient;
 
     /// @inheritdoc IMetaMorphoV1_1Base
@@ -128,6 +131,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     constructor(
         address owner,
         address morpho,
+        address _feeCollector,
         uint256 initialTimelock,
         address _asset,
         string memory __name,
@@ -135,6 +139,8 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     ) ERC4626(IERC20(_asset)) ERC20Permit("") ERC20("", "") Ownable(owner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
         if (initialTimelock != 0) _checkTimelockBounds(initialTimelock);
+        if (feeCollector == address(0)) revert ErrorsLib.ZeroAddress();
+
         _setTimelock(initialTimelock);
 
         _name = __name;
@@ -144,6 +150,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         emit EventsLib.SetSymbol(__symbol);
 
         MORPHO = IMorpho(morpho);
+        feeCollector = _feeCollector;
         DECIMALS_OFFSET = uint8(uint256(18).zeroFloorSub(IERC20Metadata(_asset).decimals()));
 
         IERC20(_asset).forceApprove(morpho, type(uint256).max);
@@ -914,7 +921,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         lostAssets = newLostAssets;
         emit EventsLib.UpdateLostAssets(newLostAssets);
 
-        if (feeShares != 0) _mint(feeRecipient, feeShares);
+        if (feeShares != 0) _mint(_feeCollector, feeShares);
 
         emit EventsLib.AccrueInterest(newTotalAssets, feeShares);
     }

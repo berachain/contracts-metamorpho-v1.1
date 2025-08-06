@@ -19,6 +19,8 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
     /// @inheritdoc IMetaMorphoV1_1Factory
     address public immutable MORPHO;
 
+    address public immutable FEE_COLLECTOR;
+
     /* STORAGE */
 
     /// @inheritdoc IMetaMorphoV1_1Factory
@@ -28,10 +30,12 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
 
     /// @dev Initializes the contract.
     /// @param morpho The address of the Morpho contract.
-    constructor(address morpho) {
+    constructor(address morpho, address feeCollector) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
+        if (feeCollector == address(0)) revert ErrorsLib.ZeroAddress();
 
         MORPHO = morpho;
+        FEE_COLLECTOR = feeCollector;
     }
 
     /* EXTERNAL */
@@ -46,11 +50,12 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
         bytes32 salt
     ) external returns (IMetaMorphoV1_1 metaMorpho) {
         metaMorpho = IMetaMorphoV1_1(
-            address(new MetaMorphoV1_1{salt: salt}(initialOwner, MORPHO, initialTimelock, asset, name, symbol))
+            address(new MetaMorphoV1_1{salt: salt}(initialOwner, MORPHO, FEE_COLLECTOR, initialTimelock, asset, name, symbol))
         );
 
         isMetaMorpho[address(metaMorpho)] = true;
 
+        // REMOVE: AVOID CHANGES TO THE EVENT BECAUSE BE MAY NOT BE ABLE TO PROCESS IT PROPERLY
         emit EventsLib.CreateMetaMorpho(
             address(metaMorpho), msg.sender, initialOwner, initialTimelock, asset, name, symbol, salt
         );

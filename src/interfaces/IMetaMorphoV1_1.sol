@@ -55,6 +55,9 @@ interface IMetaMorphoV1_1Base {
     /// @notice The fee recipient.
     function feeRecipient() external view returns (address);
 
+    /// @notice The fee collector.
+    function feeCollector() external view returns (address);
+
     /// @notice The skim recipient.
     function skimRecipient() external view returns (address);
 
