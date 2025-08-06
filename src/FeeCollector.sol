@@ -3,13 +3,15 @@ pragma solidity 0.8.26;
 
 import { OwnableUpgradeable } from "../lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import { SafeERC20 } from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IFeeCollector } from "./interfaces/IFeeCollector.sol";
 import { IMetaMorphoV1_1 } from "./interfaces/IMetaMorphoV1_1.sol";
 import { IMetaMorphoV1_1Factory } from "./interfaces/IMetaMorphoV1_1Factory.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
-contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable {
+contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
     
     uint256 private constant ONE_HUNDRED_PERCENT = 10000; // 100% in basis points
@@ -17,7 +19,7 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable {
     /// @notice The maximum fee percentage (50%) that can be set for a vault for the foundation.
     uint256 public constant MAX_FEE_PERCENTAGE = 5000; // 50% in basis points
 
-    /// @notice Berachain foundation address that receives a percentage of the fees collected.
+    /// @inheritdoc IFeeCollector
     address public foundation;
 
     /// @notice The MetaMorphoV1_1 factory contract.
@@ -42,6 +44,8 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable {
         metamorphoFactory = IMetaMorphoV1_1Factory(_metamorphoFactory);
     }
 
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
     /// @notice Sets the fee percentage for a vault that is taken by the foundation.
     /// @param vault The address of the vault.
     /// @param _feePercentage The fee percentage to set, represented in basis points
@@ -57,10 +61,20 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable {
             foundationShare: _feePercentage,
             isSet: true
         });
+
+        emit EventsLib.FeePercentageSet(vault, _feePercentage);
     }
 
-    /// @notice Transfer shares to the foundation and the vault's fee recipient.
-    /// @param vault The address of the MetaMorpho vault.
+    function setFoundation(address _foundation) external onlyOwner {
+        if (_foundation == address(0)) revert ErrorsLib.ZeroAddress();
+        if (_foundation == foundation) revert ErrorsLib.AlreadySet();
+
+        foundation = _foundation;
+
+        emit EventsLib.FoundationAddressSet(_foundation);
+    }
+
+    /// @inheritdoc IFeeCollector
     function claimShares(address vault) external {
         if (!metamorphoFactory.isMetaMorpho(vault)) revert ErrorsLib.InvalidMetaMorpho();
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
@@ -88,6 +102,8 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable {
 
         // Transfer the remaining shares to the vault's fee recipient
         vaultShare.safeTransfer(vaultFeeRecipient, remainingShare);
+
+        emit EventsLib.SharesClaimed(vault, foundationShare, remainingShare);
     }
 
     /// @dev Retrieves the foundation percentage for a vault.
