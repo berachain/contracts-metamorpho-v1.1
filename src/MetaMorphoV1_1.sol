@@ -139,7 +139,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     ) ERC4626(IERC20(_asset)) ERC20Permit("") ERC20("", "") Ownable(owner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
         if (initialTimelock != 0) _checkTimelockBounds(initialTimelock);
-        if (feeCollector == address(0)) revert ErrorsLib.ZeroAddress();
+        if (_feeCollector == address(0)) revert ErrorsLib.ZeroAddress();
 
         _setTimelock(initialTimelock);
 
