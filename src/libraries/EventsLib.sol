@@ -125,6 +125,11 @@ library EventsLib {
     /// @param foundationShare The percentage of fees collected by the foundation.
     event FeePercentageSet(address indexed vault, uint256 foundationShare);
 
+    /// @notice Emitted when the default foundation fee percentage is set.
+    /// @param oldPercentage The old percentage value.
+    /// @param newPercentage The new percentage value.
+    event DefaultFoundationFeePercentageSet(uint256 oldPercentage, uint256 newPercentage);
+
     /// @notice Emitted when shares are claimed by the foundation and the vault's fee recipient.
     /// @param vault The address of the MetaMorpho vault.
     /// @param foundationShare The amount of shares sent to the foundation.

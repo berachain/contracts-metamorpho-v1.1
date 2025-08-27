@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.26;
+pragma solidity ^0.8.26;
 
 import { OwnableUpgradeable } from "../lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import { UUPSUpgradeable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import { SafeERC20 } from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { IFeeCollector } from "./interfaces/IFeeCollector.sol";
 import { IMetaMorphoV1_1 } from "./interfaces/IMetaMorphoV1_1.sol";
 import { IMetaMorphoV1_1Factory } from "./interfaces/IMetaMorphoV1_1Factory.sol";
@@ -16,8 +17,11 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     
     uint256 private constant ONE_HUNDRED_PERCENT = 10000; // 100% in basis points
 
-    /// @notice The maximum fee percentage (50%) that can be set for a vault for the foundation.
-    uint256 public constant MAX_FEE_PERCENTAGE = 5000; // 50% in basis points
+    /// @notice The init fee percentage value.
+    uint256 public constant INIT_FEE_PERCENTAGE = 1500; // 15% in basis points 
+
+    /// @notice The default foundation fee percentage each vault has if no specific fee is set.
+    uint256 public defaultFoundationFeePercentage;
 
     /// @inheritdoc IFeeCollector
     address public foundation;
@@ -26,9 +30,9 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     IMetaMorphoV1_1Factory public metamorphoFactory;
 
     /// @notice Percentage of fees collected by the foundation.
-    /// @dev The percentage is represented as a value between 0 and MAX_FEE_PERCENTAGE
+    /// @dev The percentage is represented as a value between 0 and ONE_HUNDRED_PERCENT
     /// @dev The remaining percentage (ONE_HUNDRED_PERCENT - foundationPercentage) is collected by the vault feeRecipient.
-    mapping(address => FeePercentage) public feePercentage;
+    mapping(address => FeePercentage) public _vaultFeePercentages;
 
     constructor() {
         _disableInitializers();
@@ -42,6 +46,7 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
 
         foundation = _foundation;
         metamorphoFactory = IMetaMorphoV1_1Factory(_metamorphoFactory);
+        defaultFoundationFeePercentage = INIT_FEE_PERCENTAGE;
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
@@ -51,20 +56,20 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     /// @param _feePercentage The fee percentage to set, represented in basis points
     function setFeePercentage(address vault, uint256 _feePercentage) external onlyOwner {
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
-        if (_feePercentage > MAX_FEE_PERCENTAGE) revert ErrorsLib.MaxFeeExceeded();
+        if (_feePercentage > ONE_HUNDRED_PERCENT) revert ErrorsLib.MaxFeeExceeded();
         if (!metamorphoFactory.isMetaMorpho(vault)) revert ErrorsLib.InvalidMetaMorpho();
-        FeePercentage storage fee = feePercentage[vault];
+        FeePercentage storage fee = _vaultFeePercentages[vault];
 
-        if (fee.isSet && fee.foundationShare == _feePercentage) revert ErrorsLib.AlreadySet();
+        if (fee.isSet && fee.foundationPercentage == _feePercentage) revert ErrorsLib.AlreadySet();
 
-        fee = FeePercentage({
-            foundationShare: _feePercentage,
-            isSet: true
-        });
+        fee.foundationPercentage = _feePercentage;
+        fee.isSet = true;
 
         emit EventsLib.FeePercentageSet(vault, _feePercentage);
     }
 
+    /// @notice Sets the foundation address who takes the fees.
+    /// @param _foundation The foundation address
     function setFoundation(address _foundation) external onlyOwner {
         if (_foundation == address(0)) revert ErrorsLib.ZeroAddress();
         if (_foundation == foundation) revert ErrorsLib.AlreadySet();
@@ -74,6 +79,25 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
         emit EventsLib.FoundationAddressSet(_foundation);
     }
 
+    /// @notice Sets the default foundation fee percentage.
+    /// @param _defaultFee The default fee percentage
+    function setDefaultFoundationFeePercentage(uint256 _defaultFee) external onlyOwner {
+        if (_defaultFee > ONE_HUNDRED_PERCENT) revert ErrorsLib.MaxFeeExceeded();
+        if (defaultFoundationFeePercentage == _defaultFee) revert ErrorsLib.AlreadySet();
+
+        uint256 old = defaultFoundationFeePercentage;
+        defaultFoundationFeePercentage = _defaultFee;
+
+        emit EventsLib.DefaultFoundationFeePercentageSet(old, _defaultFee);
+    }
+
+    /// @inheritdoc IFeeCollector
+    function getFoundationFeePercentage(address vault) external override view returns (uint256) {
+        if (!metamorphoFactory.isMetaMorpho(vault)) revert ErrorsLib.InvalidMetaMorpho();
+
+        return _getFoundationPercentage(vault);
+    } 
+
     /// @inheritdoc IFeeCollector
     function claimShares(address vault) external {
         if (!metamorphoFactory.isMetaMorpho(vault)) revert ErrorsLib.InvalidMetaMorpho();
@@ -81,7 +105,7 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
 
         IERC20 vaultShare = IERC20(vault);
         uint256 shares = vaultShare.balanceOf(address(this));
-        // TBD: Revert?
+
         if (shares == 0) return;
 
         uint256 foundationPercentage = _getFoundationPercentage(vault);
@@ -97,7 +121,6 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
         // Here the assumption the vault has a feeRecipient set
         // because, otherwise, fee from vault will not be collected
         // because of this, we do not check if feeRecipient is the zero address
-        // TBD
         address vaultFeeRecipient = IMetaMorphoV1_1(vault).feeRecipient();
 
         // Transfer the remaining shares to the vault's fee recipient
@@ -109,12 +132,10 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     /// @dev Retrieves the foundation percentage for a vault.
     /// @param vault The address of the vault.
     /// @return The foundation percentage for the vault.
-    /// @dev If the fee percentage is not set, it defaults to MAX_FEE_PERCENTAGE (50%).
     function _getFoundationPercentage(address vault) internal view returns (uint256) {
-        FeePercentage memory fee = feePercentage[vault];
+        FeePercentage memory fee = _vaultFeePercentages[vault];
         if (!fee.isSet) {
-            // Default to MAX_FEE_PERCENTAGE if not set
-            return MAX_FEE_PERCENTAGE;
+            return defaultFoundationFeePercentage;
         }
         return fee.foundationPercentage;
     }

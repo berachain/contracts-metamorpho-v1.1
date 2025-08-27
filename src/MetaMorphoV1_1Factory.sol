@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.26;
+pragma solidity ^0.8.26;
 
 import {IMetaMorphoV1_1} from "./interfaces/IMetaMorphoV1_1.sol";
 import {IMetaMorphoV1_1Factory} from "./interfaces/IMetaMorphoV1_1Factory.sol";

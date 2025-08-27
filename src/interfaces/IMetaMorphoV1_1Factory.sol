@@ -23,7 +23,6 @@ interface IMetaMorphoV1_1Factory {
     /// @param salt The salt to use for the MetaMorphoV1_1 vault's CREATE2 address.
     function createMetaMorpho(
         address initialOwner,
-        address feeCollector,
         uint256 initialTimelock,
         address asset,
         string memory name,

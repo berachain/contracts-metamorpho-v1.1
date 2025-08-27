@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.26;
+pragma solidity ^0.8.26;
 
 import {
     MarketConfig,
@@ -921,7 +921,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         lostAssets = newLostAssets;
         emit EventsLib.UpdateLostAssets(newLostAssets);
 
-        if (feeShares != 0) _mint(_feeCollector, feeShares);
+        if (feeShares != 0) _mint(feeCollector, feeShares);
 
         emit EventsLib.AccrueInterest(newTotalAssets, feeShares);
     }
