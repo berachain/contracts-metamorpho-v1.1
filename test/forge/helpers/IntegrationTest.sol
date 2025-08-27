@@ -15,7 +15,7 @@ contract IntegrationTest is BaseTest {
     function setUp() public virtual override {
         super.setUp();
 
-        vault = createMetaMorpho(OWNER, address(morpho), TIMELOCK, address(loanToken), "MetaMorpho Vault", "MMV");
+        vault = createMetaMorpho(OWNER, address(morpho), FEE_COLLECTOR, TIMELOCK, address(loanToken), "MetaMorpho Vault", "MMV");
 
         vm.startPrank(OWNER);
         vault.setCurator(CURATOR);
@@ -46,13 +46,14 @@ contract IntegrationTest is BaseTest {
     function createMetaMorpho(
         address owner,
         address morpho,
+        address feeCollector,
         uint256 initialTimelock,
         address asset,
         string memory name,
         string memory symbol
     ) public returns (IMetaMorphoV1_1) {
         return IMetaMorphoV1_1(
-            deployCode("MetaMorphoV1_1.sol", abi.encode(owner, morpho, initialTimelock, asset, name, symbol))
+            deployCode("MetaMorphoV1_1.sol", abi.encode(owner, morpho, feeCollector, initialTimelock, asset, name, symbol))
         );
     }
 

@@ -21,7 +21,7 @@ contract MetaMorphoInternalTest is BaseTest {
         super.setUp();
 
         metaMorphoMock =
-            new MetaMorphoMock(OWNER, address(morpho), 1 days, address(loanToken), "MetaMorpho Vault", "MM");
+            new MetaMorphoMock(OWNER, address(morpho), FEE_COLLECTOR, 1 days, address(loanToken), "MetaMorpho Vault", "MM");
 
         vm.startPrank(OWNER);
         metaMorphoMock.setCurator(CURATOR);
