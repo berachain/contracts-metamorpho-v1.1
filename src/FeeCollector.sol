@@ -117,17 +117,20 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
         uint256 remainingShare = shares - foundationShare;
 
 
-        // Transfer the foundation's share to the foundation address
-        vaultShare.safeTransfer(foundation, foundationShare);
+        if (foundationShare > 0) {
+            // Transfer the foundation's share to the foundation address
+            vaultShare.safeTransfer(foundation, foundationShare);
+        }
 
+        if (remainingShare > 0) {
+            // Here the assumption the vault has a feeRecipient set
+            // because, otherwise, fee from vault will not be collected
+            // because of this, we do not check if feeRecipient is the zero address
+            address vaultFeeRecipient = IMetaMorphoV1_1(vault).feeRecipient();
 
-        // Here the assumption the vault has a feeRecipient set
-        // because, otherwise, fee from vault will not be collected
-        // because of this, we do not check if feeRecipient is the zero address
-        address vaultFeeRecipient = IMetaMorphoV1_1(vault).feeRecipient();
-
-        // Transfer the remaining shares to the vault's fee recipient
-        vaultShare.safeTransfer(vaultFeeRecipient, remainingShare);
+            // Transfer the remaining shares to the vault's fee recipient
+            vaultShare.safeTransfer(vaultFeeRecipient, remainingShare);
+        }
 
         emit EventsLib.SharesClaimed(vault, foundationShare, remainingShare);
     }
