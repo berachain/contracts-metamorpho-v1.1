@@ -62,6 +62,9 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
 
         if (fee.isSet && fee.foundationPercentage == _feePercentage) revert ErrorsLib.AlreadySet();
 
+        // Claim with old fee percentage
+        claimShares(vault);
+    
         fee.foundationPercentage = _feePercentage;
         fee.isSet = true;
 
@@ -99,7 +102,7 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     } 
 
     /// @inheritdoc IFeeCollector
-    function claimShares(address vault) external {
+    function claimShares(address vault) public {
         if (!metamorphoFactory.isMetaMorpho(vault)) revert ErrorsLib.InvalidMetaMorpho();
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
 
