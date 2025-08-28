@@ -34,6 +34,7 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     /// @dev The remaining percentage (ONE_HUNDRED_PERCENT - foundationPercentage) is collected by the vault feeRecipient.
     mapping(address => FeePercentage) public _vaultFeePercentages;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -41,8 +42,9 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
     /// @notice Initializes the contract.
     /// @param _foundation The address of the Berachain foundation.
     function initialize(address governance, address _foundation, address _metamorphoFactory) external initializer {
-        if (_foundation == address(0)) revert("Zero address not allowed");
+        if (_foundation == address(0)) revert ErrorsLib.ZeroAddress();
         __Ownable_init(governance);
+        __UUPSUpgradeable_init();
 
         foundation = _foundation;
         metamorphoFactory = IMetaMorphoV1_1Factory(_metamorphoFactory);
