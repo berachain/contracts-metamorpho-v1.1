@@ -19,7 +19,7 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
     /// @inheritdoc IMetaMorphoV1_1Factory
     address public immutable MORPHO;
 
-    address public immutable FEE_COLLECTOR;
+    address public immutable FEE_PARTITIONER;
 
     /* STORAGE */
 
@@ -30,12 +30,12 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
 
     /// @dev Initializes the contract.
     /// @param morpho The address of the Morpho contract.
-    constructor(address morpho, address feeCollector) {
+    constructor(address morpho, address feePartitioner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
-        if (feeCollector == address(0)) revert ErrorsLib.ZeroAddress();
+        if (feePartitioner == address(0)) revert ErrorsLib.ZeroAddress();
 
         MORPHO = morpho;
-        FEE_COLLECTOR = feeCollector;
+        FEE_PARTITIONER = feePartitioner;
     }
 
     /* EXTERNAL */
@@ -52,7 +52,7 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
         metaMorpho = IMetaMorphoV1_1(
             address(
                 new MetaMorphoV1_1{salt: salt}(
-                    initialOwner, MORPHO, FEE_COLLECTOR, initialTimelock, asset, name, symbol
+                    initialOwner, MORPHO, FEE_PARTITIONER, initialTimelock, asset, name, symbol
                 )
             )
         );

@@ -36,8 +36,9 @@ contract FeePartitionerTest is BaseTest {
     }
 
     function testSetDefaultPlatformFeePercentage(uint256 fee) public {
-        fee = bound(fee, 1, ONE_HUNDRED_PERCENT);
+        fee = bound(fee, 0, ONE_HUNDRED_PERCENT);
         uint256 initFee = feePartitioner.INIT_FEE_PERCENTAGE();
+        vm.assume(fee != initFee);
 
         vm.prank(GOVERNANCE);
         vm.expectEmit();
