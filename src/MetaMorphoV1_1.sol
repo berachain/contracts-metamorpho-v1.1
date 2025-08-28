@@ -10,6 +10,7 @@ import {
     IMetaMorphoV1_1StaticTyping
 } from "./interfaces/IMetaMorphoV1_1.sol";
 import {Id, MarketParams, Market, IMorpho} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMetaFeePartitioner} from "./interfaces/IMetaFeePartitioner.sol";
 
 import {PendingUint192, PendingAddress, PendingLib} from "./libraries/PendingLib.sol";
 import {ConstantsLib} from "./libraries/ConstantsLib.sol";
@@ -61,6 +62,9 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     /// @inheritdoc IMetaMorphoV1_1Base
     uint8 public immutable DECIMALS_OFFSET;
 
+    /// @inheritdoc IMetaMorphoV1_1Base
+    IMetaFeePartitioner public immutable FEE_PARTITIONER;
+
     /* STORAGE */
 
     /// @inheritdoc IMetaMorphoV1_1Base
@@ -94,9 +98,6 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     address public feeRecipient;
 
     /// @inheritdoc IMetaMorphoV1_1Base
-    address public feeCollector;
-
-    /// @inheritdoc IMetaMorphoV1_1Base
     address public skimRecipient;
 
     /// @inheritdoc IMetaMorphoV1_1Base
@@ -122,6 +123,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     /// @dev Initializes the contract.
     /// @param owner The owner of the contract.
     /// @param morpho The address of the Morpho contract.
+    /// @param feePartitioner The address of the fee partitioner contract.
     /// @param initialTimelock The initial timelock.
     /// @param _asset The address of the underlying asset.
     /// @param __name The name of the vault.
@@ -131,7 +133,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     constructor(
         address owner,
         address morpho,
-        address _feeCollector,
+        address feePartitioner,
         uint256 initialTimelock,
         address _asset,
         string memory __name,
@@ -139,7 +141,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     ) ERC4626(IERC20(_asset)) ERC20Permit("") ERC20("", "") Ownable(owner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
         if (initialTimelock != 0) _checkTimelockBounds(initialTimelock);
-        if (_feeCollector == address(0)) revert ErrorsLib.ZeroAddress();
+        if (feePartitioner == address(0)) revert ErrorsLib.ZeroAddress();
 
         _setTimelock(initialTimelock);
 
@@ -150,7 +152,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         emit EventsLib.SetSymbol(__symbol);
 
         MORPHO = IMorpho(morpho);
-        feeCollector = _feeCollector;
+        FEE_PARTITIONER = IMetaFeePartitioner(feePartitioner);
         DECIMALS_OFFSET = uint8(uint256(18).zeroFloorSub(IERC20Metadata(_asset).decimals()));
 
         IERC20(_asset).forceApprove(morpho, type(uint256).max);
@@ -921,7 +923,11 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         lostAssets = newLostAssets;
         emit EventsLib.UpdateLostAssets(newLostAssets);
 
-        if (feeShares != 0) _mint(feeCollector, feeShares);
+        if (feeShares != 0) {
+            (uint256 platformShare, uint256 recipientShare) = FEE_PARTITIONER.getShares(address(this), feeShares);
+            if (platformShare > 0) _mint(MORPHO.feeRecipient(), platformShare);
+            if (recipientShare > 0) _mint(feeRecipient, recipientShare);
+        }
 
         emit EventsLib.AccrueInterest(newTotalAssets, feeShares);
     }

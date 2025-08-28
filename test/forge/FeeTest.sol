@@ -14,6 +14,8 @@ contract FeeTest is IntegrationTest {
         super.setUp();
 
         _setFee(FEE);
+        vm.prank(GOVERNANCE);
+        feePartitioner.setDefaultPlatformFeePercentage(5000); // 50%
 
         for (uint256 i; i < NB_MARKETS; ++i) {
             MarketParams memory marketParams = allMarkets[i];
@@ -74,7 +76,8 @@ contract FeeTest is IntegrationTest {
         vault.withdraw(withdrawn, RECEIVER, ONBEHALF);
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertApproxEqAbs(vault.balanceOf(FEE_COLLECTOR), 0, 1, "vault.balanceOf(FEE_COLLECTOR)");
+        assertApproxEqAbs(vault.balanceOf(FEE_RECIPIENT), 0, 1, "vault.balanceOf(FEE_RECIPIENT)");
+        assertApproxEqAbs(vault.balanceOf(MORPHO_FEE_RECIPIENT), 0, 1, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
     }
 
     function testDepositAccrueFee(uint256 deposited, uint256 newDeposit, uint256 blocks) public {
@@ -103,7 +106,9 @@ contract FeeTest is IntegrationTest {
         vault.deposit(newDeposit, ONBEHALF);
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertEq(vault.balanceOf(FEE_COLLECTOR), feeShares, "vault.balanceOf(FEE_COLLECTOR)");
+        uint256 platformFee = feeShares / 2;
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformFee, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares - platformFee, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     function testMintAccrueFee(uint256 deposited, uint256 newDeposit, uint256 blocks) public {
@@ -134,7 +139,9 @@ contract FeeTest is IntegrationTest {
         vault.mint(shares, ONBEHALF);
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertEq(vault.balanceOf(FEE_COLLECTOR), feeShares, "vault.balanceOf(FEE_COLLECTOR)");
+        uint256 platformFee = feeShares / 2;
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformFee, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares - platformFee, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     function testRedeemAccrueFee(uint256 deposited, uint256 withdrawn, uint256 blocks) public {
@@ -163,7 +170,9 @@ contract FeeTest is IntegrationTest {
         vault.redeem(shares, RECEIVER, ONBEHALF);
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertEq(vault.balanceOf(FEE_COLLECTOR), feeShares, "vault.balanceOf(FEE_COLLECTOR)");
+        uint256 platformFee = feeShares / 2;
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformFee, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares - platformFee, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     function testWithdrawAccrueFee(uint256 deposited, uint256 withdrawn, uint256 blocks) public {
@@ -190,7 +199,9 @@ contract FeeTest is IntegrationTest {
         vault.withdraw(withdrawn, RECEIVER, ONBEHALF);
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertEq(vault.balanceOf(FEE_COLLECTOR), feeShares, "vault.balanceOf(FEE_COLLECTOR)");
+        uint256 platformFee = feeShares / 2;
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformFee, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares - platformFee, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     function testSetFeeAccrueFee(uint256 deposited, uint256 fee, uint256 blocks) public {
@@ -216,10 +227,12 @@ contract FeeTest is IntegrationTest {
         _setFee(fee);
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertEq(vault.balanceOf(FEE_COLLECTOR), feeShares, "vault.balanceOf(FEE_COLLECTOR)");
+        uint256 platformFee = feeShares / 2;
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformFee, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares - platformFee, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
-    function testSetFeeCollectorAccrueFee(uint256 deposited, uint256 blocks) public {
+    function testSetSplittedFeeWithAccrueFee(uint256 deposited, uint256 blocks) public {
         deposited = bound(deposited, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         blocks = _boundBlocks(blocks);
 
@@ -244,7 +257,7 @@ contract FeeTest is IntegrationTest {
         vault.setFeeRecipient(address(1));
 
         assertApproxEqAbs(vault.lastTotalAssets(), vault.totalAssets(), 1, "lastTotalAssets2");
-        assertEq(vault.balanceOf(FEE_COLLECTOR), feeShares, "vault.balanceOf(FEE_COLLECTOR)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares - (feeShares / 2), "vault.balanceOf(FEE_RECIPIENT)");
         assertEq(vault.balanceOf(address(1)), 0, "vault.balanceOf(address(1))");
     }
 

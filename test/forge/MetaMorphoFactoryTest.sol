@@ -11,12 +11,12 @@ contract MetaMorphoFactoryTest is IntegrationTest {
     function setUp() public override {
         super.setUp();
 
-        factory = new MetaMorphoV1_1Factory(address(morpho), FEE_COLLECTOR);
+        factory = new MetaMorphoV1_1Factory(address(morpho), address(feePartitioner));
     }
 
     function testFactoryAddressZero() public {
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
-        new MetaMorphoV1_1Factory(address(0), FEE_COLLECTOR);
+        new MetaMorphoV1_1Factory(address(0), address(feePartitioner));
     }
 
     function testCreateMetaMorpho(
@@ -31,7 +31,15 @@ contract MetaMorphoFactoryTest is IntegrationTest {
 
         bytes32 initCodeHash = hashInitCode(
             type(MetaMorphoV1_1).creationCode,
-            abi.encode(initialOwner, address(morpho), FEE_COLLECTOR, initialTimelock, address(loanToken), name, symbol)
+            abi.encode(
+                initialOwner,
+                address(morpho),
+                address(feePartitioner),
+                initialTimelock,
+                address(loanToken),
+                name,
+                symbol
+            )
         );
         address expectedAddress = computeCreate2Address(salt, initCodeHash, address(factory));
 

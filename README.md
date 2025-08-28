@@ -7,6 +7,9 @@
 > - the timelock can be set to zero at deployment;
 > - the name and symbol are mutable;
 > - `reallocate` always reverts if the market is not enabled in the vault.
+>
+> Berachain also added a mechanism to partition the fee between the vault fee recipient and the morpho one with a percentage that
+> can be changed in a centralized way.
 
 ## Overview
 

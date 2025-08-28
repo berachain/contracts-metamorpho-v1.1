@@ -49,7 +49,7 @@ contract BaseTest is Test {
     address internal CURATOR = makeAddr("Curator");
     address internal GUARDIAN = makeAddr("Guardian");
     address internal FEE_RECIPIENT = makeAddr("FeeRecipient");
-    address internal FEE_COLLECTOR = makeAddr("FeeCollector");
+    address internal GOVERNANCE = makeAddr("Governance");
     address internal SKIM_RECIPIENT = makeAddr("SkimRecipient");
     address internal MORPHO_OWNER = makeAddr("MorphoOwner");
     address internal MORPHO_FEE_RECIPIENT = makeAddr("MorphoFeeRecipient");

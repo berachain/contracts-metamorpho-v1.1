@@ -50,7 +50,11 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
         bytes32 salt
     ) external returns (IMetaMorphoV1_1 metaMorpho) {
         metaMorpho = IMetaMorphoV1_1(
-            address(new MetaMorphoV1_1{salt: salt}(initialOwner, MORPHO, FEE_COLLECTOR, initialTimelock, asset, name, symbol))
+            address(
+                new MetaMorphoV1_1{salt: salt}(
+                    initialOwner, MORPHO, FEE_COLLECTOR, initialTimelock, asset, name, symbol
+                )
+            )
         );
 
         isMetaMorpho[address(metaMorpho)] = true;

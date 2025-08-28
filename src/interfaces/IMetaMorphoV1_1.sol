@@ -4,6 +4,7 @@ pragma solidity >=0.5.0;
 import {IMorpho, Id, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IERC4626} from "../../lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IERC20Permit} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {IMetaFeePartitioner} from "./IMetaFeePartitioner.sol";
 
 import {MarketConfig, PendingUint192, PendingAddress} from "../libraries/PendingLib.sol";
 
@@ -40,6 +41,9 @@ interface IMetaMorphoV1_1Base {
     /// depositors should check that the share price does not exceed a certain limit.
     function DECIMALS_OFFSET() external view returns (uint8);
 
+    /// @notice The fee partitioner.
+    function FEE_PARTITIONER() external view returns (IMetaFeePartitioner);
+
     /// @notice The address of the curator.
     function curator() external view returns (address);
 
@@ -54,9 +58,6 @@ interface IMetaMorphoV1_1Base {
 
     /// @notice The fee recipient.
     function feeRecipient() external view returns (address);
-
-    /// @notice The fee collector.
-    function feeCollector() external view returns (address);
 
     /// @notice The skim recipient.
     function skimRecipient() external view returns (address);
