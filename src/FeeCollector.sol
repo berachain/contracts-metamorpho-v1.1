@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import { OwnableUpgradeable } from "../lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
@@ -14,6 +14,11 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 
 contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
+
+    struct FeePercentage {
+        uint256 foundationPercentage; // Share for the foundation
+        bool isSet; // Indicates if the fee percentage is set
+    }
     
     uint256 private constant ONE_HUNDRED_PERCENT = 10000; // 100% in basis points
 
@@ -98,8 +103,6 @@ contract FeeCollector is IFeeCollector, Initializable, OwnableUpgradeable, UUPSU
 
     /// @inheritdoc IFeeCollector
     function getFoundationFeePercentage(address vault) external override view returns (uint256) {
-        if (!metamorphoFactory.isMetaMorpho(vault)) revert ErrorsLib.InvalidMetaMorpho();
-
         return _getFoundationPercentage(vault);
     } 
 

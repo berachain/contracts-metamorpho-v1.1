@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {IMetaMorphoV1_1} from "./interfaces/IMetaMorphoV1_1.sol";
 import {IMetaMorphoV1_1Factory} from "./interfaces/IMetaMorphoV1_1Factory.sol";
@@ -55,7 +55,6 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
 
         isMetaMorpho[address(metaMorpho)] = true;
 
-        // REMOVE: AVOID CHANGES TO THE EVENT BECAUSE BE MAY NOT BE ABLE TO PROCESS IT PROPERLY
         emit EventsLib.CreateMetaMorpho(
             address(metaMorpho), msg.sender, initialOwner, initialTimelock, asset, name, symbol, salt
         );

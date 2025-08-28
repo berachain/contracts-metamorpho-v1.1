@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity >=0.5.0;
+pragma solidity >=0.8.0;
 
 interface IFeeCollector {
-
-    struct FeePercentage {
-        uint256 foundationPercentage; // Share for the foundation
-        bool isSet; // Indicates if the fee percentage is set
-    }
-
     /// @notice Berachain foundation address that receives a percentage of the fees collected..
     function foundation() external view returns (address);
 
