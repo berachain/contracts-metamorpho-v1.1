@@ -19,7 +19,9 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
     /// @inheritdoc IMetaMorphoV1_1Factory
     address public immutable MORPHO;
 
-    address public immutable FEE_PARTITIONER;
+    /// @notice The fee partitioner.
+    /// @dev Internal due to contract size limit.
+    address internal immutable FEE_PARTITIONER;
 
     /* STORAGE */
 

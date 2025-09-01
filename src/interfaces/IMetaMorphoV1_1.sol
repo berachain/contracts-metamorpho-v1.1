@@ -41,9 +41,6 @@ interface IMetaMorphoV1_1Base {
     /// depositors should check that the share price does not exceed a certain limit.
     function DECIMALS_OFFSET() external view returns (uint8);
 
-    /// @notice The fee partitioner.
-    function FEE_PARTITIONER() external view returns (IMetaFeePartitioner);
-
     /// @notice The address of the curator.
     function curator() external view returns (address);
 

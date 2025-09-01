@@ -62,8 +62,9 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     /// @inheritdoc IMetaMorphoV1_1Base
     uint8 public immutable DECIMALS_OFFSET;
 
-    /// @inheritdoc IMetaMorphoV1_1Base
-    IMetaFeePartitioner public immutable FEE_PARTITIONER;
+    /// @notice The fee partitioner.
+    /// @dev Internal due to contract size limit in the factory.
+    IMetaFeePartitioner internal immutable FEE_PARTITIONER;
 
     /* STORAGE */
 
@@ -162,34 +163,28 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
 
     /// @dev Reverts if the caller doesn't have the curator role.
     modifier onlyCuratorRole() {
-        address sender = _msgSender();
-        if (sender != curator && sender != owner()) revert ErrorsLib.NotCuratorRole();
+        _onlyCurator();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the allocator role.
     modifier onlyAllocatorRole() {
-        address sender = _msgSender();
-        if (!isAllocator[sender] && sender != curator && sender != owner()) {
-            revert ErrorsLib.NotAllocatorRole();
-        }
+       _onlyAllocator();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the guardian role.
     modifier onlyGuardianRole() {
-        if (_msgSender() != owner() && _msgSender() != guardian) revert ErrorsLib.NotGuardianRole();
+       _onlyGuardian();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the curator nor the guardian role.
     modifier onlyCuratorOrGuardianRole() {
-        if (_msgSender() != guardian && _msgSender() != curator && _msgSender() != owner()) {
-            revert ErrorsLib.NotCuratorNorGuardianRole();
-        }
+        _onlyCuratorOrGuardian();
 
         _;
     }
@@ -203,6 +198,30 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         if (block.timestamp < validAt) revert ErrorsLib.TimelockNotElapsed();
 
         _;
+    }
+
+
+    /* MODIFIERS REFERENCE FUNCTION INTERNAL */
+    function _onlyCurator() internal view {
+        address sender = _msgSender();
+        if (sender != curator && sender != owner()) revert ErrorsLib.NotCuratorRole();
+    }
+
+    function _onlyCuratorOrGuardian() internal view {
+        if (_msgSender() != guardian && _msgSender() != curator && _msgSender() != owner()) {
+            revert ErrorsLib.NotCuratorNorGuardianRole();
+        }
+    }
+
+    function _onlyGuardian() internal view {
+        if (_msgSender() != owner() && _msgSender() != guardian) revert ErrorsLib.NotGuardianRole();
+    }
+
+    function _onlyAllocator() internal view {
+        address sender = _msgSender();
+        if (!isAllocator[sender] && sender != curator && sender != owner()) {
+            revert ErrorsLib.NotAllocatorRole();
+        }
     }
 
     /* ONLY OWNER FUNCTIONS */
