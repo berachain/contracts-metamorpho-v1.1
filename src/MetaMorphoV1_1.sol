@@ -170,14 +170,14 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
 
     /// @dev Reverts if the caller doesn't have the allocator role.
     modifier onlyAllocatorRole() {
-       _onlyAllocator();
+        _onlyAllocator();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the guardian role.
     modifier onlyGuardianRole() {
-       _onlyGuardian();
+        _onlyGuardian();
 
         _;
     }
@@ -199,7 +199,6 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
 
         _;
     }
-
 
     /* MODIFIERS REFERENCE FUNCTION INTERNAL */
     function _onlyCurator() internal view {
