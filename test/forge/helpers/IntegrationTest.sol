@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
+import {MetaFeePartitionerDeployer} from "../../../src/utils/MetaFeePartitionerDeployer.sol";
+import {MetaFeePartitioner} from "../../../src/MetaFeePartitioner.sol";
 
 uint256 constant TIMELOCK = 1 weeks;
 
@@ -11,11 +13,17 @@ contract IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
     IMetaMorphoV1_1 internal vault;
+    MetaFeePartitioner internal feePartitioner;
 
     function setUp() public virtual override {
         super.setUp();
 
-        vault = createMetaMorpho(OWNER, address(morpho), TIMELOCK, address(loanToken), "MetaMorpho Vault", "MMV");
+        MetaFeePartitionerDeployer feePartitionerDeployer = new MetaFeePartitionerDeployer(GOVERNANCE, 0);
+        feePartitioner = feePartitionerDeployer.feePartitioner();
+
+        vault = createMetaMorpho(
+            OWNER, address(morpho), address(feePartitioner), TIMELOCK, address(loanToken), "MetaMorpho Vault", "MMV"
+        );
 
         vm.startPrank(OWNER);
         vault.setCurator(CURATOR);
@@ -46,13 +54,16 @@ contract IntegrationTest is BaseTest {
     function createMetaMorpho(
         address owner,
         address morpho,
+        address feePartitioner_,
         uint256 initialTimelock,
         address asset,
         string memory name,
         string memory symbol
     ) public returns (IMetaMorphoV1_1) {
         return IMetaMorphoV1_1(
-            deployCode("MetaMorphoV1_1.sol", abi.encode(owner, morpho, initialTimelock, asset, name, symbol))
+            deployCode(
+                "MetaMorphoV1_1.sol", abi.encode(owner, morpho, feePartitioner_, initialTimelock, asset, name, symbol)
+            )
         );
     }
 

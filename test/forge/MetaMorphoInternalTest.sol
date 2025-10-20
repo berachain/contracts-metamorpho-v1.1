@@ -17,11 +17,14 @@ contract MetaMorphoInternalTest is BaseTest {
 
     MetaMorphoMock internal metaMorphoMock;
 
+    address internal FEE_PARTITIONER = makeAddr("FeePartitioner");
+
     function setUp() public virtual override {
         super.setUp();
 
-        metaMorphoMock =
-            new MetaMorphoMock(OWNER, address(morpho), 1 days, address(loanToken), "MetaMorpho Vault", "MM");
+        metaMorphoMock = new MetaMorphoMock(
+            OWNER, address(morpho), FEE_PARTITIONER, 1 days, address(loanToken), "MetaMorpho Vault", "MM"
+        );
 
         vm.startPrank(OWNER);
         metaMorphoMock.setCurator(CURATOR);

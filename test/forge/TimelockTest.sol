@@ -69,7 +69,9 @@ contract TimelockTest is IntegrationTest {
         timelock = bound(timelock, ConstantsLib.MAX_TIMELOCK + 1, type(uint256).max);
 
         vm.expectRevert(ErrorsLib.AboveMaxTimelock.selector);
-        createMetaMorpho(OWNER, address(morpho), timelock, address(loanToken), "MetaMorpho Vault", "MMV");
+        createMetaMorpho(
+            OWNER, address(morpho), address(feePartitioner), timelock, address(loanToken), "MetaMorpho Vault", "MMV"
+        );
     }
 
     function testSubmitTimelockAboveMaxTimelock(uint256 timelock) public {

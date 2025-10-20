@@ -10,6 +10,7 @@ import {
     IMetaMorphoV1_1StaticTyping
 } from "./interfaces/IMetaMorphoV1_1.sol";
 import {Id, MarketParams, Market, IMorpho} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMetaFeePartitioner} from "./interfaces/IMetaFeePartitioner.sol";
 
 import {PendingUint192, PendingAddress, PendingLib} from "./libraries/PendingLib.sol";
 import {ConstantsLib} from "./libraries/ConstantsLib.sol";
@@ -60,6 +61,10 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
 
     /// @inheritdoc IMetaMorphoV1_1Base
     uint8 public immutable DECIMALS_OFFSET;
+
+    /// @notice The fee partitioner.
+    /// @dev Internal due to contract size limit in the factory.
+    IMetaFeePartitioner internal immutable FEE_PARTITIONER;
 
     /* STORAGE */
 
@@ -119,6 +124,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     /// @dev Initializes the contract.
     /// @param owner The owner of the contract.
     /// @param morpho The address of the Morpho contract.
+    /// @param feePartitioner The address of the fee partitioner contract.
     /// @param initialTimelock The initial timelock.
     /// @param _asset The address of the underlying asset.
     /// @param __name The name of the vault.
@@ -128,6 +134,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     constructor(
         address owner,
         address morpho,
+        address feePartitioner,
         uint256 initialTimelock,
         address _asset,
         string memory __name,
@@ -135,6 +142,8 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     ) ERC4626(IERC20(_asset)) ERC20Permit("") ERC20("", "") Ownable(owner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
         if (initialTimelock != 0) _checkTimelockBounds(initialTimelock);
+        if (feePartitioner == address(0)) revert ErrorsLib.ZeroAddress();
+
         _setTimelock(initialTimelock);
 
         _name = __name;
@@ -144,6 +153,7 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         emit EventsLib.SetSymbol(__symbol);
 
         MORPHO = IMorpho(morpho);
+        FEE_PARTITIONER = IMetaFeePartitioner(feePartitioner);
         DECIMALS_OFFSET = uint8(uint256(18).zeroFloorSub(IERC20Metadata(_asset).decimals()));
 
         IERC20(_asset).forceApprove(morpho, type(uint256).max);
@@ -153,34 +163,28 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
 
     /// @dev Reverts if the caller doesn't have the curator role.
     modifier onlyCuratorRole() {
-        address sender = _msgSender();
-        if (sender != curator && sender != owner()) revert ErrorsLib.NotCuratorRole();
+        _onlyCurator();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the allocator role.
     modifier onlyAllocatorRole() {
-        address sender = _msgSender();
-        if (!isAllocator[sender] && sender != curator && sender != owner()) {
-            revert ErrorsLib.NotAllocatorRole();
-        }
+        _onlyAllocator();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the guardian role.
     modifier onlyGuardianRole() {
-        if (_msgSender() != owner() && _msgSender() != guardian) revert ErrorsLib.NotGuardianRole();
+        _onlyGuardian();
 
         _;
     }
 
     /// @dev Reverts if the caller doesn't have the curator nor the guardian role.
     modifier onlyCuratorOrGuardianRole() {
-        if (_msgSender() != guardian && _msgSender() != curator && _msgSender() != owner()) {
-            revert ErrorsLib.NotCuratorNorGuardianRole();
-        }
+        _onlyCuratorOrGuardian();
 
         _;
     }
@@ -194,6 +198,29 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         if (block.timestamp < validAt) revert ErrorsLib.TimelockNotElapsed();
 
         _;
+    }
+
+    /* MODIFIERS REFERENCE FUNCTION INTERNAL */
+    function _onlyCurator() internal view {
+        address sender = _msgSender();
+        if (sender != curator && sender != owner()) revert ErrorsLib.NotCuratorRole();
+    }
+
+    function _onlyCuratorOrGuardian() internal view {
+        if (_msgSender() != guardian && _msgSender() != curator && _msgSender() != owner()) {
+            revert ErrorsLib.NotCuratorNorGuardianRole();
+        }
+    }
+
+    function _onlyGuardian() internal view {
+        if (_msgSender() != owner() && _msgSender() != guardian) revert ErrorsLib.NotGuardianRole();
+    }
+
+    function _onlyAllocator() internal view {
+        address sender = _msgSender();
+        if (!isAllocator[sender] && sender != curator && sender != owner()) {
+            revert ErrorsLib.NotAllocatorRole();
+        }
     }
 
     /* ONLY OWNER FUNCTIONS */
@@ -914,7 +941,11 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         lostAssets = newLostAssets;
         emit EventsLib.UpdateLostAssets(newLostAssets);
 
-        if (feeShares != 0) _mint(feeRecipient, feeShares);
+        if (feeShares != 0) {
+            (uint256 platformShare, uint256 recipientShare) = FEE_PARTITIONER.getShares(address(this), feeShares);
+            if (platformShare > 0) _mint(MORPHO.feeRecipient(), platformShare);
+            if (recipientShare > 0) _mint(feeRecipient, recipientShare);
+        }
 
         emit EventsLib.AccrueInterest(newTotalAssets, feeShares);
     }

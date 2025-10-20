@@ -42,7 +42,15 @@ contract ReentrancyTest is IntegrationTest, IERC1820Implementer {
 
         vault = IMetaMorphoV1_1(
             address(
-                new MetaMorphoV1_1(OWNER, address(morpho), TIMELOCK, address(reentrantToken), "MetaMorpho Vault", "MMV")
+                new MetaMorphoV1_1(
+                    OWNER,
+                    address(morpho),
+                    address(feePartitioner),
+                    TIMELOCK,
+                    address(reentrantToken),
+                    "MetaMorpho Vault",
+                    "MMV"
+                )
             )
         );
 

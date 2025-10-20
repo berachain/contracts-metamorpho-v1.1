@@ -115,4 +115,14 @@ library EventsLib {
         string symbol,
         bytes32 salt
     );
+
+    /// @notice Emitted when the fee percentage for a vault is set.
+    /// @param vault The address of the vault.
+    /// @param platformShare The percentage of fees collected by the platform.
+    event FeePercentageSet(address indexed vault, uint256 platformShare);
+
+    /// @notice Emitted when the default platform fee percentage is set.
+    /// @param oldPercentage The old percentage value.
+    /// @param newPercentage The new percentage value.
+    event DefaultPlatformFeePercentageSet(uint256 oldPercentage, uint256 newPercentage);
 }

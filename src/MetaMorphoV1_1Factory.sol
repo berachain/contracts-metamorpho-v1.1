@@ -19,6 +19,10 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
     /// @inheritdoc IMetaMorphoV1_1Factory
     address public immutable MORPHO;
 
+    /// @notice The fee partitioner.
+    /// @dev Internal due to contract size limit.
+    address internal immutable FEE_PARTITIONER;
+
     /* STORAGE */
 
     /// @inheritdoc IMetaMorphoV1_1Factory
@@ -28,10 +32,12 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
 
     /// @dev Initializes the contract.
     /// @param morpho The address of the Morpho contract.
-    constructor(address morpho) {
+    constructor(address morpho, address feePartitioner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
+        if (feePartitioner == address(0)) revert ErrorsLib.ZeroAddress();
 
         MORPHO = morpho;
+        FEE_PARTITIONER = feePartitioner;
     }
 
     /* EXTERNAL */
@@ -46,7 +52,11 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
         bytes32 salt
     ) external returns (IMetaMorphoV1_1 metaMorpho) {
         metaMorpho = IMetaMorphoV1_1(
-            address(new MetaMorphoV1_1{salt: salt}(initialOwner, MORPHO, initialTimelock, asset, name, symbol))
+            address(
+                new MetaMorphoV1_1{salt: salt}(
+                    initialOwner, MORPHO, FEE_PARTITIONER, initialTimelock, asset, name, symbol
+                )
+            )
         );
 
         isMetaMorpho[address(metaMorpho)] = true;
