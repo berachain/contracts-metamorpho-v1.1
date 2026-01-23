@@ -19,7 +19,7 @@
   "dependencies": {
     "ethers": "^6.9.2",
     "evm-maths": "^6.0.0",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.23"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.4",
