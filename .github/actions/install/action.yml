@@ -5,13 +5,13 @@ runs:
 
   steps:
     - name: Install node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: 18
         cache: yarn
 
     - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@v1
+      uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
 
     - name: Install dependencies
       run: yarn install --frozen-lockfile
