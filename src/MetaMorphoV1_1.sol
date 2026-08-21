@@ -941,9 +941,22 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         lostAssets = newLostAssets;
         emit EventsLib.UpdateLostAssets(newLostAssets);
 
-        if (feeShares != 0) {
-            (uint256 platformShare, uint256 recipientShare) = FEE_PARTITIONER.getShares(address(this), feeShares);
-            if (platformShare > 0) _mint(MORPHO.feeRecipient(), platformShare);
+        address platformFeeRecipient = MORPHO.feeRecipient();
+
+        if (feeShares != 0 && (platformFeeRecipient != address(0) || feeRecipient != address(0))) {
+            uint256 platformShare;
+            uint256 recipientShare;
+
+            if (platformFeeRecipient == address(0)) {
+                recipientShare = feeShares;
+            } else if (feeRecipient == address(0)) {
+                platformShare = feeShares;
+            } else {
+                (platformShare, recipientShare) = FEE_PARTITIONER.getShares(address(this), feeShares);
+                if (platformShare + recipientShare != feeShares) revert ErrorsLib.InconsistentFeePartitioning();
+            }
+
+            if (platformShare > 0) _mint(platformFeeRecipient, platformShare);
             if (recipientShare > 0) _mint(feeRecipient, recipientShare);
         }
 

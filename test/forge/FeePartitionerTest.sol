@@ -58,6 +58,7 @@ contract FeePartitionerTest is BaseTest {
         feePartitioner.setDefaultPlatformFeePercentage(initFee);
 
         vm.prank(GOVERNANCE);
+        if (fee == initFee) vm.expectRevert(ErrorsLib.AlreadySet.selector);
         feePartitioner.setDefaultPlatformFeePercentage(fee);
 
         vm.prank(GOVERNANCE);
