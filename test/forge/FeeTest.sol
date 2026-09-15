@@ -3,8 +3,12 @@ pragma solidity ^0.8.0;
 
 import "./helpers/IntegrationTest.sol";
 import {IMetaFeePartitioner} from "../../src/interfaces/IMetaFeePartitioner.sol";
+import {GasGuzzlingFeePartitionerMock} from "../../src/mocks/GasGuzzlingFeePartitionerMock.sol";
 
 uint256 constant FEE = 0.2 ether; // 20%
+
+/// @dev Mirrors `MetaMorphoV1_1.MAX_GAS_FOR_FEE_PARTITIONER`, which is private.
+uint256 constant MAX_GAS_FOR_FEE_PARTITIONER = 50_000;
 
 contract FeeTest is IntegrationTest {
     using Math for uint256;
@@ -262,7 +266,7 @@ contract FeeTest is IntegrationTest {
         assertEq(vault.balanceOf(address(1)), 0, "vault.balanceOf(address(1))");
     }
 
-    function testDepositAccrueFeeInconsistentFeePartitioning(uint256 deposited, uint256 newDeposit, uint256 blocks)
+    function testDepositAccrueFeeGasGuzzlingFeePartitioner(uint256 deposited, uint256 newDeposit, uint256 blocks)
         public
     {
         deposited = bound(deposited, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
@@ -279,18 +283,71 @@ contract FeeTest is IntegrationTest {
         uint256 feeShares = _feeShares();
         vm.assume(feeShares != 0);
 
-        // Make the fee partitioner return shares that do not sum up to the total fee shares.
+        // The vault's fee partitioner is immutable, so the guzzling code is put at the partitioner's address.
+        vm.etch(address(feePartitioner), address(new GasGuzzlingFeePartitionerMock()).code);
+
+        // Sanity check: the mock cannot return within the vault's gas budget, and would give everything to the
+        // platform if it could, so the assertions below can only hold if the vault took the fallback path.
+        (bool success, bytes memory returnData) = address(feePartitioner).staticcall{
+            gas: MAX_GAS_FOR_FEE_PARTITIONER
+        }(abi.encodeCall(IMetaFeePartitioner.getShares, (address(vault), feeShares)));
+        assertFalse(success, "partitioner returned within the gas budget");
+        assertEq(returnData.length, 0, "returnData");
+
+        loanToken.setBalance(SUPPLIER, newDeposit);
+
+        vm.expectEmit(address(vault));
+        emit EventsLib.AccrueInterest(vault.totalAssets(), feeShares);
+
+        // The failing partitioner must not make interest accrual, and hence the deposit, revert.
+        vm.prank(SUPPLIER);
+        vault.deposit(newDeposit, ONBEHALF);
+
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), 0, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares, "vault.balanceOf(FEE_RECIPIENT)");
+    }
+
+    function testDepositAccrueFeeInconsistentFeePartitioning(
+        uint256 deposited,
+        uint256 newDeposit,
+        uint256 blocks,
+        uint256 platformShare,
+        uint256 recipientShare
+    ) public {
+        deposited = bound(deposited, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
+        newDeposit = bound(newDeposit, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
+        blocks = _boundBlocks(blocks);
+
+        loanToken.setBalance(SUPPLIER, deposited);
+
+        vm.prank(SUPPLIER);
+        vault.deposit(deposited, ONBEHALF);
+
+        _forward(blocks);
+
+        uint256 feeShares = _feeShares();
+        vm.assume(feeShares != 0);
+
+        // Make the fee partitioner return shares that do not sum up to the total fee shares. The whole uint256 range
+        // is fuzzed on purpose: shares large enough to overflow their sum must fall back like any other bad split.
+        vm.assume(platformShare > feeShares || recipientShare != feeShares - platformShare);
         vm.mockCall(
             address(feePartitioner),
             abi.encodeWithSelector(IMetaFeePartitioner.getShares.selector),
-            abi.encode(feeShares, 1)
+            abi.encode(platformShare, recipientShare)
         );
 
         loanToken.setBalance(SUPPLIER, newDeposit);
 
+        vm.expectEmit(address(vault));
+        emit EventsLib.AccrueInterest(vault.totalAssets(), feeShares);
+
+        // The inconsistent split must not make interest accrual, and hence the deposit, revert.
         vm.prank(SUPPLIER);
-        vm.expectRevert(ErrorsLib.InconsistentFeePartitioning.selector);
         vault.deposit(newDeposit, ONBEHALF);
+
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), 0, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     /// @dev The `fee`/`feeRecipient` slot is packed as `fee` (bytes 0-11) then `feeRecipient` (bytes 12-31).

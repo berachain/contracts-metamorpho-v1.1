@@ -54,6 +54,11 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     using PendingLib for PendingUint192;
     using PendingLib for PendingAddress;
 
+    /// @notice The maximum gas allowed for interactions with the fee partitioner.
+    /// @dev From tests, the maximum gas used for interactions with the fee partitioner was observed to be around 10,000.
+    /// We left a buffer for future increases in gas usage.
+    uint256 private constant MAX_GAS_FOR_FEE_PARTITIONER = 50_000;
+
     /* IMMUTABLES */
 
     /// @inheritdoc IMetaMorphoV1_1Base
@@ -949,8 +954,28 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
             if (platformFeeRecipient == address(0)) {
                 recipientShare = feeShares;
             } else {
-                (platformShare, recipientShare) = FEE_PARTITIONER.getShares(address(this), feeShares);
-                if (platformShare + recipientShare != feeShares) revert ErrorsLib.InconsistentFeePartitioning();
+                // The partitioner is external and untrusted: bound its gas and never let it block interest accrual.
+                (bool success, bytes memory returnData) = address(FEE_PARTITIONER).staticcall{gas: MAX_GAS_FOR_FEE_PARTITIONER}(
+                    abi.encodeCall(IMetaFeePartitioner.getShares, (address(this), feeShares))
+                );
+
+                bool isTrustedFeePartitioner = true;
+                if (success && returnData.length == 64) {
+                    (platformShare, recipientShare) = abi.decode(returnData, (uint256, uint256));
+                    // Written as a subtraction so that a partitioner returning huge shares cannot make the sum
+                    // overflow, which would revert instead of falling back.
+                    if (platformShare > feeShares || recipientShare != feeShares - platformShare) {
+                        isTrustedFeePartitioner = false;
+                    }
+                } else {
+                    isTrustedFeePartitioner = false;
+                }
+
+                if (!isTrustedFeePartitioner) {
+                    // If the fee partitioner cannot be trusted, the whole fee goes to the vault's fee recipient.
+                    platformShare = 0;
+                    recipientShare = feeShares;
+                }
             }
 
             if (platformShare > 0) _mint(platformFeeRecipient, platformShare);
