@@ -954,16 +954,16 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
             if (platformFeeRecipient == address(0)) {
                 recipientShare = feeShares;
             } else {
-                // The partitioner is external and untrusted: bound its gas and never let it block interest accrual.
+                // Bound gas forwarding to avoid the partitioner consuming excessive gas and potentially reverting as safeguard against tokeover of the partitioner's ownership.
                 (bool success, bytes memory returnData) = address(FEE_PARTITIONER).staticcall{gas: MAX_GAS_FOR_FEE_PARTITIONER}(
                     abi.encodeCall(IMetaFeePartitioner.getShares, (address(this), feeShares))
                 );
 
+                // Validate that the returned shares sum up to the total fee shares.
                 bool isTrustedFeePartitioner = true;
                 if (success && returnData.length == 64) {
                     (platformShare, recipientShare) = abi.decode(returnData, (uint256, uint256));
-                    // Written as a subtraction so that a partitioner returning huge shares cannot make the sum
-                    // overflow, which would revert instead of falling back.
+                    // Written as a subtraction to avoid overflow.
                     if (platformShare > feeShares || recipientShare != feeShares - platformShare) {
                         isTrustedFeePartitioner = false;
                     }
