@@ -10,6 +10,11 @@ uint256 constant FEE = 0.2 ether; // 20%
 /// @dev Mirrors `MetaMorphoV1_1.MAX_GAS_FOR_FEE_PARTITIONER`, which is private.
 uint256 constant MAX_GAS_FOR_FEE_PARTITIONER = 50_000;
 
+/// @dev Deposit and elapsed-block floors high enough that the accrued fee never rounds down to zero shares, so the
+/// fee partitioner tests can assert on the fee instead of rejecting the runs that accrue none.
+uint256 constant MIN_FEE_ACCRUING_ASSETS = 1e12;
+uint256 constant MIN_FEE_ACCRUING_BLOCKS = 10_000;
+
 contract FeeTest is IntegrationTest {
     using Math for uint256;
     using MathLib for uint256;
@@ -266,13 +271,12 @@ contract FeeTest is IntegrationTest {
         assertEq(vault.balanceOf(address(1)), 0, "vault.balanceOf(address(1))");
     }
 
-    function testDepositAccrueFeeGasGuzzlingFeePartitioner(uint256 deposited, uint256 newDeposit, uint256 blocks)
-        public
+    /// @dev Deposits, lets interest accrue and deposits again, so that a first fee is split by the healthy
+    /// partitioner. Both fee recipients are left holding shares, and their balances are returned.
+    function _accrueFeeWithHealthyPartitioner(uint256 deposited, uint256 blocks)
+        internal
+        returns (uint256 platformBalance, uint256 recipientBalance)
     {
-        deposited = bound(deposited, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        newDeposit = bound(newDeposit, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        blocks = _boundBlocks(blocks);
-
         loanToken.setBalance(SUPPLIER, deposited);
 
         vm.prank(SUPPLIER);
@@ -280,8 +284,32 @@ contract FeeTest is IntegrationTest {
 
         _forward(blocks);
 
+        loanToken.setBalance(SUPPLIER, deposited);
+
+        vm.prank(SUPPLIER);
+        vault.deposit(deposited, ONBEHALF);
+
+        platformBalance = vault.balanceOf(MORPHO_FEE_RECIPIENT);
+        recipientBalance = vault.balanceOf(FEE_RECIPIENT);
+
+        assertGt(platformBalance, 0, "platformBalance");
+        assertGt(recipientBalance, 0, "recipientBalance");
+    }
+
+    function testDepositAccrueFeeGasGuzzlingFeePartitioner(uint256 deposited, uint256 newDeposit, uint256 blocks)
+        public
+    {
+        deposited = bound(deposited, MIN_FEE_ACCRUING_ASSETS, MAX_TEST_ASSETS);
+        newDeposit = bound(newDeposit, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
+        blocks = bound(blocks, MIN_FEE_ACCRUING_BLOCKS, type(uint24).max);
+
+        (uint256 platformBalanceBefore, uint256 recipientBalanceBefore) =
+            _accrueFeeWithHealthyPartitioner(deposited, blocks);
+
+        _forward(blocks);
+
         uint256 feeShares = _feeShares();
-        vm.assume(feeShares != 0);
+        assertGt(feeShares, 0, "feeShares");
 
         // The vault's fee partitioner is immutable, so the guzzling code is put at the partitioner's address.
         vm.etch(address(feePartitioner), address(new GasGuzzlingFeePartitionerMock()).code);
@@ -303,8 +331,9 @@ contract FeeTest is IntegrationTest {
         vm.prank(SUPPLIER);
         vault.deposit(newDeposit, ONBEHALF);
 
-        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), 0, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
-        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares, "vault.balanceOf(FEE_RECIPIENT)");
+        // The platform keeps the shares it already held, but is minted none of the new fee.
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformBalanceBefore, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), recipientBalanceBefore + feeShares, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     function testDepositAccrueFeeInconsistentFeePartitioning(
@@ -314,23 +343,26 @@ contract FeeTest is IntegrationTest {
         uint256 platformShare,
         uint256 recipientShare
     ) public {
-        deposited = bound(deposited, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
+        deposited = bound(deposited, MIN_FEE_ACCRUING_ASSETS, MAX_TEST_ASSETS);
         newDeposit = bound(newDeposit, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        blocks = _boundBlocks(blocks);
+        blocks = bound(blocks, MIN_FEE_ACCRUING_BLOCKS, type(uint24).max);
 
-        loanToken.setBalance(SUPPLIER, deposited);
-
-        vm.prank(SUPPLIER);
-        vault.deposit(deposited, ONBEHALF);
+        (uint256 platformBalanceBefore, uint256 recipientBalanceBefore) =
+            _accrueFeeWithHealthyPartitioner(deposited, blocks);
 
         _forward(blocks);
 
         uint256 feeShares = _feeShares();
-        vm.assume(feeShares != 0);
+        assertGt(feeShares, 0, "feeShares");
+
+        // Ensure that the recipient share does not match the expected valid split, making the partitioner return an inconsistent split.
+        vm.assume(feeShares < type(uint256).max);
+        recipientShare = bound(recipientShare, 0, feeShares);
+        platformShare = bound(platformShare, feeShares, type(uint256).max - recipientShare);
+        if (recipientShare + platformShare == feeShares) ++recipientShare;
 
         // Make the fee partitioner return shares that do not sum up to the total fee shares. The whole uint256 range
         // is fuzzed on purpose: shares large enough to overflow their sum must fall back like any other bad split.
-        vm.assume(platformShare > feeShares || recipientShare != feeShares - platformShare);
         vm.mockCall(
             address(feePartitioner),
             abi.encodeWithSelector(IMetaFeePartitioner.getShares.selector),
@@ -346,8 +378,9 @@ contract FeeTest is IntegrationTest {
         vm.prank(SUPPLIER);
         vault.deposit(newDeposit, ONBEHALF);
 
-        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), 0, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
-        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares, "vault.balanceOf(FEE_RECIPIENT)");
+        // The platform keeps the shares it already held, but is minted none of the new fee.
+        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformBalanceBefore, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), recipientBalanceBefore + feeShares, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
     /// @dev The `fee`/`feeRecipient` slot is packed as `fee` (bytes 0-11) then `feeRecipient` (bytes 12-31).
