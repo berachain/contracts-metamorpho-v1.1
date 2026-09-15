@@ -32,6 +32,7 @@ contract MetaMorphoV1_1Factory is IMetaMorphoV1_1Factory {
 
     /// @dev Initializes the contract.
     /// @param morpho The address of the Morpho contract.
+    /// @param feePartitioner The address of the fee partitioner.
     constructor(address morpho, address feePartitioner) {
         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
         if (feePartitioner == address(0)) revert ErrorsLib.ZeroAddress();
