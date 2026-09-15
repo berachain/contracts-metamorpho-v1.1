@@ -371,14 +371,14 @@ contract FeeTest is IntegrationTest {
 
         loanToken.setBalance(SUPPLIER, newDeposit);
 
+        // An inconsistent split does not revert: the whole fee is minted to the vault's fee recipient, and the platform
+        // keeps the already existing owned shares.
         vm.expectEmit(address(vault));
         emit EventsLib.AccrueInterest(vault.totalAssets(), feeShares);
 
-        // The inconsistent split must not make interest accrual, and hence the deposit, revert.
         vm.prank(SUPPLIER);
         vault.deposit(newDeposit, ONBEHALF);
 
-        // The platform keeps the shares it already held, but is minted none of the new fee.
         assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), platformBalanceBefore, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
         assertEq(vault.balanceOf(FEE_RECIPIENT), recipientBalanceBefore + feeShares, "vault.balanceOf(FEE_RECIPIENT)");
     }
