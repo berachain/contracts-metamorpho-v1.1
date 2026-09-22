@@ -54,6 +54,11 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
     using PendingLib for PendingUint192;
     using PendingLib for PendingAddress;
 
+    /// @notice The maximum gas allowed for interactions with the fee partitioner.
+    /// @dev From tests, the maximum gas used for interactions with the fee partitioner was observed to be around 10,000.
+    /// We left a buffer for future increases in gas usage.
+    uint256 private constant MAX_GAS_FOR_FEE_PARTITIONER = 50_000;
+
     /* IMMUTABLES */
 
     /// @inheritdoc IMetaMorphoV1_1Base
@@ -941,19 +946,36 @@ contract MetaMorphoV1_1 is ERC4626, ERC20Permit, Ownable2Step, Multicall, IMetaM
         lostAssets = newLostAssets;
         emit EventsLib.UpdateLostAssets(newLostAssets);
 
-        address platformFeeRecipient = MORPHO.feeRecipient();
-
-        if (feeShares != 0 && (platformFeeRecipient != address(0) || feeRecipient != address(0))) {
+        if (feeShares != 0) {
+            address platformFeeRecipient = MORPHO.feeRecipient();
             uint256 platformShare;
             uint256 recipientShare;
 
             if (platformFeeRecipient == address(0)) {
                 recipientShare = feeShares;
-            } else if (feeRecipient == address(0)) {
-                platformShare = feeShares;
             } else {
-                (platformShare, recipientShare) = FEE_PARTITIONER.getShares(address(this), feeShares);
-                if (platformShare + recipientShare != feeShares) revert ErrorsLib.InconsistentFeePartitioning();
+                // Bound gas forwarding to avoid the partitioner consuming excessive gas and potentially reverting as safeguard against tokeover of the partitioner's ownership.
+                (bool success, bytes memory returnData) = address(FEE_PARTITIONER).staticcall{gas: MAX_GAS_FOR_FEE_PARTITIONER}(
+                    abi.encodeCall(IMetaFeePartitioner.getShares, (address(this), feeShares))
+                );
+
+                // Validate that the returned shares sum up to the total fee shares.
+                bool isTrustedFeePartitioner = true;
+                if (success && returnData.length == 64) {
+                    (platformShare, recipientShare) = abi.decode(returnData, (uint256, uint256));
+                    // Written as a subtraction to avoid overflow.
+                    if (platformShare > feeShares || recipientShare != feeShares - platformShare) {
+                        isTrustedFeePartitioner = false;
+                    }
+                } else {
+                    isTrustedFeePartitioner = false;
+                }
+
+                if (!isTrustedFeePartitioner) {
+                    // If the fee partitioner cannot be trusted, the whole fee goes to the vault's fee recipient.
+                    platformShare = 0;
+                    recipientShare = feeShares;
+                }
             }
 
             if (platformShare > 0) _mint(platformFeeRecipient, platformShare);
