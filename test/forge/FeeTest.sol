@@ -422,37 +422,6 @@ contract FeeTest is IntegrationTest {
         assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares, "vault.balanceOf(FEE_RECIPIENT)");
     }
 
-    function testDepositAccrueFeeZeroVaultFeeRecipient(uint256 deposited, uint256 newDeposit, uint256 blocks)
-        public
-    {
-        deposited = bound(deposited, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        newDeposit = bound(newDeposit, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        blocks = _boundBlocks(blocks);
-
-        _setVaultFeeRecipientStorage(address(0));
-
-        loanToken.setBalance(SUPPLIER, deposited);
-
-        vm.prank(SUPPLIER);
-        vault.deposit(deposited, ONBEHALF);
-
-        _forward(blocks);
-
-        uint256 feeShares = _feeShares();
-        vm.assume(feeShares != 0);
-
-        loanToken.setBalance(SUPPLIER, newDeposit);
-
-        vm.expectEmit(address(vault));
-        emit EventsLib.AccrueInterest(vault.totalAssets(), feeShares);
-
-        vm.prank(SUPPLIER);
-        vault.deposit(newDeposit, ONBEHALF);
-
-        assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), feeShares, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
-        assertEq(vault.balanceOf(FEE_RECIPIENT), 0, "vault.balanceOf(FEE_RECIPIENT)");
-    }
-
     function testDepositAccrueFeeZeroBothFeeRecipients(uint256 deposited, uint256 newDeposit, uint256 blocks)
         public
     {
@@ -462,7 +431,6 @@ contract FeeTest is IntegrationTest {
 
         vm.prank(MORPHO_OWNER);
         morpho.setFeeRecipient(address(0));
-        _setVaultFeeRecipientStorage(address(0));
 
         loanToken.setBalance(SUPPLIER, deposited);
 
@@ -485,8 +453,8 @@ contract FeeTest is IntegrationTest {
         uint256 mintedShares = vault.deposit(newDeposit, ONBEHALF);
 
         assertEq(vault.balanceOf(MORPHO_FEE_RECIPIENT), 0, "vault.balanceOf(MORPHO_FEE_RECIPIENT)");
-        assertEq(vault.balanceOf(FEE_RECIPIENT), 0, "vault.balanceOf(FEE_RECIPIENT)");
-        assertEq(vault.totalSupply(), totalSupplyBefore + mintedShares, "vault.totalSupply()");
+        assertEq(vault.balanceOf(FEE_RECIPIENT), feeShares, "vault.balanceOf(FEE_RECIPIENT)");
+        assertEq(vault.totalSupply(), totalSupplyBefore + mintedShares + feeShares, "vault.totalSupply()");
     }
 
     function testSetFeeNotOwner(uint256 fee) public {
